@@ -600,7 +600,22 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 				utiltrace.Field{Key: "Reason", Value: "slow event handlers blocking the queue"})
 			defer trace.LogIfLong(100 * time.Millisecond)
 		}
+
+		// Add detailed logging for testing
+		klog.InfoS("===== Processing item from queue",
+			"id", id,
+			"queueDepth", depth,
+			"isInInitialList", isInInitialList,
+			"item", item,
+			"deltasCount", len(item))
+
+		startTime := time.Now()
 		err := process(item, isInInitialList)
+		processingTime := time.Since(startTime)
+		klog.InfoS("===== Finished processing item",
+			"id", id,
+			"processingTime", processingTime,
+			"error", err)
 		if e, ok := err.(ErrRequeue); ok {
 			f.addIfNotPresent(id, item)
 			err = e.Err

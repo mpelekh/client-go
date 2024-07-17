@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 )
 
@@ -454,20 +455,32 @@ func processDeltas(
 	for _, d := range deltas {
 		obj := d.Object
 
+		// Add logging for delta type and object
+		klog.InfoS("===== Processing delta",
+			"type", d.Type,
+			"object", obj)
+
 		switch d.Type {
 		case Sync, Replaced, Added, Updated:
 			if old, exists, err := clientState.Get(obj); err == nil && exists {
+				klog.InfoS("===== Updating existing object",
+					"old", old,
+					"new", obj)
 				if err := clientState.Update(obj); err != nil {
 					return err
 				}
 				handler.OnUpdate(old, obj)
 			} else {
+				klog.InfoS("===== Adding new object",
+					"object", obj)
 				if err := clientState.Add(obj); err != nil {
 					return err
 				}
 				handler.OnAdd(obj, isInInitialList)
 			}
 		case Deleted:
+			klog.InfoS("===== Deleting object",
+				"object", obj)
 			if err := clientState.Delete(obj); err != nil {
 				return err
 			}
@@ -515,6 +528,7 @@ func newInformer(
 		RetryOnError:     false,
 
 		Process: func(obj interface{}, isInInitialList bool) error {
+
 			if deltas, ok := obj.(Deltas); ok {
 				return processDeltas(h, clientState, deltas, isInInitialList)
 			}
