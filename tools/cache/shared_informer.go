@@ -940,6 +940,7 @@ func (p *processorListener) pop() {
 	var nextCh chan<- interface{}
 	var notification interface{}
 	for {
+		klog.V(4).InfoS("===== Pop notification", "pendingNotificationsLen", p.pendingNotifications.Len(), "pendingNotificationsCap", p.pendingNotifications.Cap())
 		select {
 		case nextCh <- notification:
 			// Notification dispatched
@@ -949,6 +950,22 @@ func (p *processorListener) pop() {
 				nextCh = nil // Disable this select case
 			}
 		case notificationToAdd, ok := <-p.addCh:
+			// Try to get object details based on notification type
+			switch n := notificationToAdd.(type) {
+			case updateNotification:
+				klog.V(4).InfoS("===== Update notification",
+					"newObj", fmt.Sprintf("%+v", n.newObj))
+			case addNotification:
+				klog.V(4).InfoS("===== Add notification",
+					"newObj", fmt.Sprintf("%+v", n.newObj),
+					"isInInitialList", n.isInInitialList)
+			case deleteNotification:
+				klog.V(4).InfoS("===== Delete notification",
+					"oldObj", fmt.Sprintf("%+v", n.oldObj))
+			default:
+				klog.V(4).InfoS("===== Unknown notification type",
+					"type", fmt.Sprintf("%T", notificationToAdd))
+			}
 			if !ok {
 				return
 			}
@@ -971,16 +988,20 @@ func (p *processorListener) run() {
 	stopCh := make(chan struct{})
 	wait.Until(func() {
 		for next := range p.nextCh {
+			startTime := time.Now()
 			switch notification := next.(type) {
 			case updateNotification:
 				p.handler.OnUpdate(notification.oldObj, notification.newObj)
+				klog.InfoS("===== Event processing duration", "duration", time.Since(startTime))
 			case addNotification:
 				p.handler.OnAdd(notification.newObj, notification.isInInitialList)
 				if notification.isInInitialList {
 					p.syncTracker.Finished()
 				}
+				klog.InfoS("===== Event processing duration", "duration", time.Since(startTime))
 			case deleteNotification:
 				p.handler.OnDelete(notification.oldObj)
+				klog.InfoS("===== Event processing duration", "duration", time.Since(startTime))
 			default:
 				utilruntime.HandleError(fmt.Errorf("unrecognized notification: %T", next))
 			}

@@ -59,3 +59,5 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace k8s.io/utils => k8s.io/utils v0.0.0-20250502105355-0f33e8f1c979
